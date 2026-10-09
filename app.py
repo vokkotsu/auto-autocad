@@ -1,4 +1,4 @@
-"""ARVI (Automatic Road Visualization) — main Streamlit orchestration."""
+"""ARVI (Automatic Road Visualization) — main Streamlit orchestration (mobile-first)."""
 import io
 import os
 import re
@@ -17,60 +17,85 @@ from modules.preview_engine import (
     draw_plan_view,
     marker_legend_html,
 )
-from modules.ui_inputs import render_sidebar
+from modules.ui_inputs import render_inputs
 
 MARKER_TYPES = ["Rambu", "PJU", "APILL", "Halte", "Marka"]
 
 
 def main() -> None:
-    st.set_page_config(page_title="ARVI - Automatic Road Visualization", layout="wide")
-    st.title("ARVI — Automatic Road Visualization")
-    st.markdown(
-        "Aplikasi MVP yang mengambil parameter inventaris jalan dan screenshot "
-        "Google Earth untuk menghasilkan pratinjau penampang melintang, "
-        "tampak atas (plan view), serta ekspor file AutoCAD .DXF, PDF, dan PNG."
+    st.set_page_config(
+        page_title="ARVI - Automatic Road Visualization",
+        layout="wide",
+        initial_sidebar_state="collapsed",
     )
 
-    # ── 1. Sidebar inputs ─────────────────────────────────────
-    params = render_sidebar()
+    # Mobile-first: use tabs instead of sidebar
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📝 Input Data",
+        "🛣️ Potongan Melintang",
+        "🗺️ Tampak Atas",
+        "💾 Export",
+    ])
 
-    # ── 2. Cross-section preview ──────────────────────────────
-    st.header("1. Pratinjau Penampang Melintang (Cross-Section)")
-    fig = draw_cross_section(params)
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
-
-    # ── 3. Plan view (upload + marker interaction) ────────────
-    st.header("2. Pratinjau Tampak Atas (Plan View)")
-    uploaded_image = st.sidebar.file_uploader(
-        "Unggah screenshot Google Earth (basis peta)", type=["png", "jpg", "jpeg"]
-    )
-
-    if "markers" not in st.session_state:
-        st.session_state.markers = []
-    if "last_click" not in st.session_state:
-        st.session_state.last_click = None
-
-    plan_image = draw_plan_view(uploaded_image, st.session_state.markers)
-
-    col_left, col_right = st.columns([1, 2])
-    with col_left:
-        st.markdown("**Jenis Marker**")
-        marker_type = st.radio("Pilih marker", MARKER_TYPES, index=0, horizontal=True)
-        st.markdown(
-            marker_legend_html(st.session_state.markers), unsafe_allow_html=True
+    # ── Tab 1: Input Data ─────────────────────────────────────────
+    with tab1:
+        st.title("ARVI — Automatic Road Visualization")
+        st.caption(
+            "Aplikasi MVP untuk inventaris jalan: pratinjau penampang melintang, "
+            "tampak atas, dan ekspor AutoCAD .DXF, PDF, PNG."
         )
-        if st.session_state.markers:
-            st.caption(f"Total marker: {len(st.session_state.markers)}")
-            if st.button("Hapus Semua Marker", use_container_width=True):
-                st.session_state.markers.clear()
-                st.session_state.last_click = None
-                st.rerun()
+        params = render_inputs()
 
-    with col_right:
+    # ── Tab 2: Cross-Section Preview ──────────────────────────────
+    with tab2:
+        st.header("🛣️ Pratinjau Penampang Melintang")
+        fig = draw_cross_section(params)
+        # use_container_width=True makes it responsive on mobile
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+        # Quick summary metrics
+        total_width = sum([
+            params["lebar_drainase"], params["lebar_trotoar"], params["lebar_kerb"],
+            params["lebar_bahu"], params["lajur"] * params["lebar_lajur"],
+            (1.0 if params["jalur"] > 1 else 0),
+            params["lebar_bahu"], params["lebar_kerb"],
+            params["lebar_trotoar"], params["lebar_drainase"],
+        ])
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Lebar", f"{total_width:.2f} m")
+        col2.metric("Jumlah Lajur", f"{params['lajur']}")
+        col3.metric("Jalur", f"{params['jalur']}")
+
+    # ── Tab 3: Plan View (Upload + Marker Interaction) ───────────
+    with tab3:
+        st.header("🗺️ Pratinjau Tampak Atas (Plan View)")
+
+        uploaded_image = st.file_uploader(
+            "Unggah screenshot Google Earth (basis peta)",
+            type=["png", "jpg", "jpeg"],
+            help="Unggah gambar peta untuk menempatkan marker",
+        )
+
+        if "markers" not in st.session_state:
+            st.session_state.markers = []
+        if "last_click" not in st.session_state:
+            st.session_state.last_click = None
+
+        plan_image = draw_plan_view(uploaded_image, st.session_state.markers)
+
+        # Marker type selector (full width on mobile)
+        marker_type = st.radio(
+            "Pilih Jenis Marker",
+            MARKER_TYPES,
+            index=0,
+            horizontal=True,
+        )
+
         if plan_image is not None:
             from streamlit_image_coordinates import streamlit_image_coordinates
 
+            # use_container_width=True ensures the image fills the screen width on mobile
             coords = streamlit_image_coordinates(
                 plan_image, key="plan_map", use_container_width=True
             )
@@ -89,52 +114,62 @@ def main() -> None:
                     }
                 )
                 st.rerun()
-        else:
-            st.caption("Unggah screenshot Google Earth pada sidebar untuk memulai.")
 
-    if st.session_state.markers:
-        st.dataframe(
-            st.session_state.markers,
-            use_container_width=True,
-            hide_index=True,
-            column_config={"type": "Marker Type"},
+            # Marker legend and controls
+            st.markdown("**Legend Marker**")
+            st.markdown(marker_legend_html(st.session_state.markers), unsafe_allow_html=True)
+
+            if st.session_state.markers:
+                st.caption(f"Total marker: {len(st.session_state.markers)}")
+                if st.button("🗑️ Hapus Semua Marker", use_container_width=True):
+                    st.session_state.markers.clear()
+                    st.session_state.last_click = None
+                    st.rerun()
+
+                st.dataframe(
+                    st.session_state.markers,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={"type": "Marker Type"},
+                )
+        else:
+            st.info("👆 Unggah screenshot Google Earth untuk memulai penempatan marker")
+
+    # ── Tab 4: Export Options ────────────────────────────────────
+    with tab4:
+        st.header("💾 Ekspor Hasil")
+
+        dxf_buffer = generate_dxf(params)
+        report_fig = build_report_figure(params, plan_image)
+        pdf_buffer, png_buffer = _render_report_buffers(report_fig)
+        plt.close(report_fig)
+
+        safe_name = (
+            re.sub(r"[^A-Za-z0-9 _-]", "", params["project_name"])
+            .strip()
+            .replace(" ", "_")
+            or "ARVI"
         )
 
-    # ── 4. Export options ─────────────────────────────────────
-    st.header("3. Export Options")
+        st.caption(f"Nama file: **{safe_name}**")
 
-    dxf_buffer = generate_dxf(params)
-    report_fig = build_report_figure(params, plan_image)
-    pdf_buffer, png_buffer = _render_report_buffers(report_fig)
-    plt.close(report_fig)
-
-    safe_name = (
-        re.sub(r"[^A-Za-z0-9 _-]", "", params["project_name"])
-        .strip()
-        .replace(" ", "_")
-        or "ARVI"
-    )
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
+        # Full-width buttons for easy tapping on mobile
         st.download_button(
-            "Download Laporan (PDF)",
+            "📄 Download Laporan (PDF)",
             data=pdf_buffer.getvalue(),
             file_name=f"{safe_name}_Laporan.pdf",
             mime="application/pdf",
             use_container_width=True,
         )
-    with c2:
         st.download_button(
-            "Download Layout (PNG)",
+            "🖼️ Download Layout (PNG)",
             data=png_buffer.getvalue(),
             file_name=f"{safe_name}_Layout.png",
             mime="image/png",
             use_container_width=True,
         )
-    with c3:
         st.download_button(
-            "Download CAD (.DXF)",
+            "📐 Download CAD (.DXF)",
             data=dxf_buffer.getvalue(),
             file_name=f"{safe_name}.dxf",
             mime="image/vnd.autocad.dxf",
@@ -142,16 +177,16 @@ def main() -> None:
             help="File AutoCAD-compatible berisi penampang melintang dengan dimensi.",
         )
 
-    st.sidebar.markdown("---")
-    st.sidebar.caption("ARVI MVP — Modular Architecture")
+        st.markdown("---")
+        st.caption("ARVI MVP — Mobile-First Responsive UI")
 
 
 def _render_report_buffers(fig: plt.Figure) -> tuple:
     """Render the report figure to in-memory PDF and PNG buffers."""
     pdf_buffer = io.BytesIO()
     png_buffer = io.BytesIO()
-    fig.savefig(pdf_buffer, format="pdf")
-    fig.savefig(png_buffer, format="png", dpi=180)
+    fig.savefig(pdf_buffer, format="pdf", bbox_inches="tight")
+    fig.savefig(png_buffer, format="png", dpi=180, bbox_inches="tight")
     pdf_buffer.seek(0)
     png_buffer.seek(0)
     return pdf_buffer, png_buffer

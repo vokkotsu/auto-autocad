@@ -107,7 +107,7 @@ def draw_cross_section(params: Dict[str, Any]) -> plt.Figure:
         f"(lebar total {total_width:.2f} m)",
         fontsize=11,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.5)
     return fig
 
 
