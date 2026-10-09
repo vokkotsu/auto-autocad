@@ -50,8 +50,8 @@ def main() -> None:
     with tab2:
         st.header("🛣️ Pratinjau Penampang Melintang")
         fig = draw_cross_section(params)
-        # use_container_width=True makes it responsive on mobile
-        st.pyplot(fig, use_container_width=True)
+        # width="stretch" makes it responsive on mobile (Streamlit 1.65+)
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
 
         # Quick summary metrics
@@ -95,9 +95,9 @@ def main() -> None:
         if plan_image is not None:
             from streamlit_image_coordinates import streamlit_image_coordinates
 
-            # use_container_width=True ensures the image fills the screen width on mobile
+            # use_column_width=True for streamlit_image_coordinates (not use_container_width)
             coords = streamlit_image_coordinates(
-                plan_image, key="plan_map", use_container_width=True
+                plan_image, key="plan_map", use_column_width=True
             )
             if (
                 coords is not None
@@ -121,14 +121,14 @@ def main() -> None:
 
             if st.session_state.markers:
                 st.caption(f"Total marker: {len(st.session_state.markers)}")
-                if st.button("🗑️ Hapus Semua Marker", use_container_width=True):
+                if st.button("🗑️ Hapus Semua Marker", width="stretch"):
                     st.session_state.markers.clear()
                     st.session_state.last_click = None
                     st.rerun()
 
                 st.dataframe(
                     st.session_state.markers,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     column_config={"type": "Marker Type"},
                 )
@@ -159,21 +159,21 @@ def main() -> None:
             data=pdf_buffer.getvalue(),
             file_name=f"{safe_name}_Laporan.pdf",
             mime="application/pdf",
-            use_container_width=True,
+            width="stretch",
         )
         st.download_button(
             "🖼️ Download Layout (PNG)",
             data=png_buffer.getvalue(),
             file_name=f"{safe_name}_Layout.png",
             mime="image/png",
-            use_container_width=True,
+            width="stretch",
         )
         st.download_button(
             "📐 Download CAD (.DXF)",
             data=dxf_buffer.getvalue(),
             file_name=f"{safe_name}.dxf",
             mime="image/vnd.autocad.dxf",
-            use_container_width=True,
+            width="stretch",
             help="File AutoCAD-compatible berisi penampang melintang dengan dimensi.",
         )
 
